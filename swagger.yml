@@ -1,0 +1,1026 @@
+openapi: 3.0.3
+info:
+  title: Trustbytes API Suite
+  description: |
+    Comprehensive API for cryptocurrency value management and policy evaluation.
+
+    ## Value Store Management
+    API for managing cryptocurrency value store configurations used for transaction fetching and value forecasting.
+    Value stores can include traditional wallets, staking providers, yield farming protocols, or any location where cryptocurrency value is held.
+
+    ## Policy Engine
+    The Policy Evaluation API allows clients to define and manage operational policies
+    for financial portfolios, assets, and wallets. 
+    Each policy contains a JSON-based expression AST that can be evaluated at a point in time 
+    or over a time window.
+  version: 2.1.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+
+tags:
+  - name: organizations
+    description: Organization management
+  - name: value-stores
+    description: Value store configuration management. A value store can be an entire wallet or it can be a single token in a wallet. In the future this may expand to include centralized exchanges, and defi protocols. 
+  - name: baskets
+    description: |
+      Basket grouping for value stores. Baskets allow logical grouping of value stores 
+      that can be referenced in policy logic. For example: "All DeFi wallets" or "Exchange hot wallets".
+  - name: policies
+    description: Policy definition and evaluation management
+
+paths:
+  # Organization Endpoints
+  /organizations:
+    post:
+      tags: [organizations]
+      summary: Register a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+      responses:
+        '201':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Organization name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [organizations]
+      summary: List all organizations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: Successfully retrieved organizations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationListResponse'
+
+  /organizations/{organization_id}:
+    get:
+      tags: [organizations]
+      summary: Get organization details
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 42
+      responses:
+        '200':
+          description: Organization details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    patch:
+      tags: [organizations]
+      summary: Modify organization details
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 42
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+              required:
+                - display_name
+              additionalProperties: false
+      responses:
+        '200':
+          description: Organization details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{organization_id}/status:
+    patch:
+      tags: [organizations]
+      summary: Toggle organization active status
+      description: |
+        Activates or deactivates an organization. Deactivating an organization will automatically:
+        - Set all its value stores to inactive
+        - Set all baskets containing only its value stores to inactive
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 42
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active:
+                  type: boolean
+              required:
+                - is_active
+              additionalProperties: false
+      responses:
+        '200':
+          description: Organization updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Value Store Endpoints
+  # Value Store Endpoints
+  /value-stores:
+    get:
+      tags: [value-stores]
+      summary: Retrieve all value store configurations
+      parameters:
+        - name: organization_id
+          in: query
+          description: Filter by organization ID
+          schema:
+            type: integer
+        - name: network
+          in: query
+          description: |
+            Filter by blockchain network. Common values include:
+            - "ethereum"
+            - "bitcoin"
+            - "polygon"
+            - "solana"
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successfully retrieved value store configurations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueStoreListResponse'
+
+    post:
+      tags: [value-stores]
+      summary: Create a new value store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValueStoreConfigCreate'
+      responses:
+        '201':
+          description: Value store configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueStoreConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /value-stores/{organization_id}:
+    get:
+      tags: [value-stores]
+      summary: Get value stores by organization
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successfully retrieved all value stores for organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueStoreListResponse'
+
+
+  /value-stores/{value_store_id}/status:
+    patch:
+      tags: [value-stores]
+      summary: Toggle value store monitoring status
+      parameters:
+        - name: value_store_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active:
+                  type: boolean
+              required:
+                - is_active
+              additionalProperties: false
+      responses:
+        '200':
+          description: Successfully updated monitoring status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueStoreConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Basket Endpoints
+  /baskets:
+    post:
+      tags: [baskets]
+      summary: Create a new basket
+      description: |
+        Value stores can belong to multiple baskets. If you reference invalid value_store_ids, 
+        the API will return a 400 error. Note: If all value stores in a basket become inactive, 
+        the basket will automatically be set to inactive.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasketCreate'
+      responses:
+        '201':
+          description: Successfully created new basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [baskets]
+      summary: List all baskets
+      responses:
+        '200':
+          description: Successfully retrieved list of all baskets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasketListResponse'
+
+  /baskets/{basket_id}:
+    get:
+      tags: [baskets]
+      summary: Get basket details
+      parameters:
+        - name: basket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successfully retrieved basket details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [baskets]
+      summary: Update basket
+      parameters:
+        - name: basket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasketUpdate'
+      responses:
+        '200':
+          description: Successfully updated basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /baskets/{basket_id}/status:
+    patch:
+      tags: [baskets]
+      summary: Toggle basket active status
+      parameters:
+        - name: basket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active:
+                  type: boolean
+              required:
+                - is_active
+              additionalProperties: false
+      responses:
+        '200':
+          description: Successfully updated basket status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # Policy Endpoints
+  /policies:
+    get:
+      tags: [policies]
+      summary: List all policies
+      description: |
+        Retrieves all defined policies in the system.
+        Supports filtering by active status.
+      parameters:
+        - name: is_active
+          in: query
+          description: |
+            Return only active policies when true
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successfully retrieved policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Policy'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [policies]
+      summary: Create a new policy
+      description: |
+        Creates a new policy with valid expression and metadata. Each change creates a new immutable version. 
+        Previous versions cannot be accessed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Policy'
+      responses:
+        '201':
+          description: Policy successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /policies/{policy_id}:
+    get:
+      tags: [policies]
+      summary: Retrieve policy details
+      description: |
+        Fetches policy by ID including all configuration details. 
+        Each policy modification creates a new version - previous versions are not accessible.
+      parameters:
+        - name: policy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successfully retrieved policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    patch:
+      tags: [policies]
+      summary: Update policy configuration
+      description: |
+        Modifies policy definition with partial updates. 
+        Priorities must be unique - attempting to use an existing priority will return a 409 Conflict error.
+      parameters:
+        - name: policy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyUpdate'
+      responses:
+        '200':
+          description: Policy successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Priority conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+          
+  /policies/{policy_id}/status:
+    patch:
+      tags: [policies]
+      summary: Toggle policy active status
+      description: |
+        Activates or deactivates a policy. This is a soft delete - deactivated policies are retained but not evaluated. 
+        For permanent deletion, contact customer support.
+      parameters:
+        - name: policy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active:
+                  type: boolean
+              required:
+                - is_active
+              additionalProperties: false
+      responses:
+        '200':
+          description: Policy status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # Organization Schemas
+    Organization:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - created_at
+
+    OrganizationCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9_-]{3,50}$'
+        display_name:
+          type: string
+      required:
+        - name
+
+    OrganizationListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # Value Store Schemas
+    ValueStoreConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+        organization:
+          $ref: '#/components/schemas/Organization'
+        network:
+          type: string
+          description: |
+            Blockchain network identifier (e.g., "ethereum", "bitcoin", "polygon")
+        address:
+          type: string
+          description: |
+            Wallet address. Must be valid for the specified network. 
+        include:
+          type: array
+          items:
+            type: string
+          description: |
+            Token inclusion filter - specifies exactly which tokens to track.
+            
+            ### Behavior:
+            - When provided: ONLY these tokens will be tracked
+            - Mutually exclusive with 'exclude' (both cannot be used simultaneously)
+            - If empty array: Tracks NO tokens (effectively creates an empty value store)
+            
+            ### Use Cases:
+            1. Track specific tokens: 
+               - `include: ["ETH"]` → Monitors only Ethereum balance
+            2. Track multiple tokens: 
+               - `include: ["USDC", "USDT"]` → Monitors only stablecoins
+            3. Create placeholder: 
+               - `include: []` → Creates an empty value store (no tokens tracked)
+            
+            ### Validation:
+            - Must not be used with 'exclude' (400 error if both provided)
+            - Symbols are case-insensitive (ETH = eth)
+          example: ["ETH", "USDC", "WBTC"]
+        exclude:
+          type: array
+          items:
+            type: string
+          description: |
+            Token exclusion filter - specifies which tokens to ignore.
+            
+            ### Behavior:
+            - When provided: Tracks ALL tokens EXCEPT these
+            - Mutually exclusive with 'include' (both cannot be used simultaneously)
+            - If empty array: Tracks ALL tokens (same as omitting both fields)
+            
+            ### Use Cases:
+            1. Exclude low-value tokens: 
+               - `exclude: ["MEME", "SHIB"]` → Ignores meme coins
+            2. Exclude test tokens: 
+               - `exclude: ["TEST", "FAKE"]` → Filters out test assets
+            3. Track everything: 
+               - `exclude: []` → Monitors all tokens (default behavior)
+            
+            ### Validation:
+            - Must not be used with 'include' (400 error if both provided)
+            - Symbols are case-insensitive (USDC = usdc)
+          example: ["MEME", "TEST", "DUST"]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organization
+        - network
+        - address
+        - is_active
+
+    ValueStoreConfigCreate:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+        network:
+          type: string
+        address:
+          type: string
+          description: |
+            Wallet address. Must be valid for the specified network.
+        include:
+          type: array
+          items:
+            type: string
+          description: |
+            Token inclusion filter - specifies exactly which tokens to track.
+            
+            ### Behavior:
+            - When provided: ONLY these tokens will be tracked
+            - Mutually exclusive with 'exclude' (both cannot be used simultaneously)
+            - If empty array: Tracks NO tokens (effectively creates an empty value store)
+            
+            ### Use Cases:
+            1. Track specific tokens: 
+               - `include: ["ETH"]` → Monitors only Ethereum balance
+            2. Track multiple tokens: 
+               - `include: ["USDC", "USDT"]` → Monitors only stablecoins
+            3. Create placeholder: 
+               - `include: []` → Creates an empty value store (no tokens tracked)
+            
+            ### Validation:
+            - Must not be used with 'exclude' (400 error if both provided)
+            - Symbols are case-insensitive (ETH = eth)
+          example: ["ETH", "USDC", "WBTC"]
+        exclude:
+          type: array
+          items:
+            type: string
+          description: |
+            Token exclusion filter - specifies which tokens to ignore.
+            
+            ### Behavior:
+            - When provided: Tracks ALL tokens EXCEPT these
+            - Mutually exclusive with 'include' (both cannot be used simultaneously)
+            - If empty array: Tracks ALL tokens (same as omitting both fields)
+            
+            ### Use Cases:
+            1. Exclude low-value tokens: 
+               - `exclude: ["MEME", "SHIB"]` → Ignores meme coins
+            2. Exclude test tokens: 
+               - `exclude: ["TEST", "FAKE"]` → Filters out test assets
+            3. Track everything: 
+               - `exclude: []` → Monitors all tokens (default behavior)
+            
+            ### Validation:
+            - Must not be used with 'include' (400 error if both provided)
+            - Symbols are case-insensitive (USDC = usdc)
+          example: ["MEME", "TEST", "DUST"]
+        is_active:
+          type: boolean
+          default: true
+      required:
+        - organization_id
+        - network
+        - address
+
+    ValueStoreListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValueStoreConfig'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # Basket Schemas
+    Basket:
+      type: object
+      properties:
+        id:
+          type: integer
+        display_name:
+          type: string
+        is_active:
+          type: boolean
+        value_store_ids:
+          type: array
+          items:
+            type: integer
+      required:
+        - id
+        - display_name
+        - is_active
+        - value_store_ids
+
+    BasketCreate:
+      type: object
+      properties:
+        display_name:
+          type: string
+        value_store_ids:
+          type: array
+          items:
+            type: integer
+        is_active:
+          type: boolean
+          default: true
+      required:
+        - display_name
+        - value_store_ids
+
+    BasketUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+        value_store_ids:
+          type: array
+          items:
+            type: integer
+        is_active:
+          type: boolean
+      additionalProperties: false
+
+    BasketListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Basket'
+
+    # Policy Schemas
+    
+    Policy:
+      type: object
+      description: Policy configuration
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+        description:
+          type: string
+        expression:
+          type: object
+          description: |
+            JSON Abstract Syntax Tree (AST) defining the evaluation logic. 
+            Example structure:
+            {
+              "node_type": "operation",
+              "operation": ">=",
+              "operands": [
+                { 
+                  "node_type": "value", 
+                  "value_type": "basket", 
+                  "basket_id": "COLD", 
+                  "unit": "USD" 
+                },
+                {
+                  "node_type": "operation",
+                  "operation": "*",
+                  "operands": [
+                    { 
+                      "node_type": "value", 
+                      "value_type": "constant", 
+                      "value": 0.8 
+                    },
+                    {
+                      "node_type": "operation",
+                      "operation": "+",
+                      "operands": [
+                        { 
+                          "node_type": "value", 
+                          "value_type": "basket", 
+                          "basket_id": "COLD", 
+                          "unit": "USD" 
+                        },
+                        { 
+                          "node_type": "value", 
+                          "value_type": "basket", 
+                          "basket_id": "HOT", 
+                          "unit": "USD" 
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+        time_horizon:
+          type: object
+          description: |
+            Evaluation time horizon. Examples:
+            - Point evaluation: {"type": "point", "offset": "PT0S"}
+            - Window evaluation: {"type": "window", "start": "PT0S", "end": "P7D"}
+        resolution:
+          type: string
+          description: |
+            ISO 8601 duration between evaluations in window mode (e.g., "PT1H" for hourly, "P1D" for daily)
+        confidence_level:
+          type: number
+          minimum: 0.5
+          maximum: 0.99
+          default: 0.95
+          description: |
+            Statistical confidence level for probabilistic evaluations. 
+            0.95 = 95% confidence that the true value lies within the calculated range.
+        priority:
+          type: integer
+          description: |
+            Evaluation priority (0 = highest). Must be unique across all policies. 
+            Higher priority policies execute first and may short-circuit lower priority evaluations.
+        version:
+          type: integer
+          readOnly: true
+          description: |
+            Immutable version number. Increments with each change. 
+            Previous versions are not accessible through the API.
+        is_active:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - name
+        - expression
+        - time_horizon
+        - priority
+
+    PolicyUpdate:
+      type: object
+      description: Policy update payload
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        expression:
+          type: object
+        time_horizon:
+          type: object
+        resolution:
+          type: string
+        confidence_level:
+          type: number
+          minimum: 0.5
+          maximum: 0.99
+        priority:
+          type: integer
+          description: |
+            Must be unique across all policies. Conflicts return 409 error.
+        is_active:
+          type: boolean
+      additionalProperties: false
+
+    # Common Schemas
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: string
+          example: "validation_error"
+          description: Machine-readable error code
+        message:
+          type: string
+          example: "Invalid address format for network 'ethereum'"
+          description: Human-readable error message
+        code:
+          type: string
+          example: "ERR-422"
+          description: Application-specific error code
+        details:
+          type: object
+          description: Additional error context
+          example: {"field": "address", "requirement": "EIP-55 checksum format"}
+
+  responses:
+    BadRequest:
+      description: |
+        Invalid request. Common causes:
+        - Missing required fields
+        - Invalid data formats
+        - Network-specific address validation failures
+        - Invalid token symbol format
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
